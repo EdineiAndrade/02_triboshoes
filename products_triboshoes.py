@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import locale
 import re
+import ast
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
@@ -22,17 +23,17 @@ def extract_product_data(page, url_product,nome_categiria):
 
         imagem = page.query_selector_all('//*[@class="thumbnails"]/li/a/img')
         lista_imagens = list(map(lambda link: link.get_attribute('src'), imagem))
-        lista_imagens = ", ".join(lista_imagens)
+        lista_imagens = ",".join(lista_imagens)
         
         # Seleciona todas as LABELS com data-qty="0" dentro das divs de opção
         labels = page.locator('div[id^="input-option"] label[data-qty]').all()
 
         # Cria o dicionário {tamanho: data-qty}
         tamanhos_dict = {
-            label.inner_text().strip(): label.get_attribute("data-qty")
+        f'"{label.inner_text().strip()}"': label.get_attribute("data-qty")
             for label in labels
         }
-        tamanhos = '", "'.join(tamanhos_dict)
+        tamanhos = ', '.join(tamanhos_dict)
         df_tamanho = pd.DataFrame(
         list(tamanhos_dict.items()),
         columns=['Valores do Atributo 1', 'Estoque']
@@ -145,15 +146,23 @@ def scrape_categories(base_url):
                     
                     product_data = extract_product_data(page, url_product,nome_categiria)
                     df_tamanhos = product_data[0]
+                    df_tamanhos["Valores do Atributo 1"] = df_tamanhos["Valores do Atributo 1"].str.replace('"', '', regex=False)
+                    
                     df_produto = pd.DataFrame([product_data[1]])
-                    # Explodir a coluna "Valores do Atributo 1"
-                    df_explodido = df_produto.explode("Valores do Atributo 1")
-                    df_produto = df_produto.merge(
-                            df_tamanhos,
-                            on="Valores do Atributo 1",
-                            how="left"
-                        )    
+                    df_produto["Valores do Atributo 1"] = df_produto["Valores do Atributo 1"].apply(
+                        lambda x: ast.literal_eval(x)
+                    )
+                    # Explodir a coluna "Valores do Atributo 1"   
+                    df_explodido = df_produto.explode("Valores do Atributo 1").reset_index(drop=True)
+                    df_explodido = df_explodido.drop(columns=["Estoque"])
 
+                    df_final = df_explodido.merge(
+                        df_tamanhos[["Valores do Atributo 1", "Estoque"]],  # Selecionar colunas desejadas
+                        on="Valores do Atributo 1",
+                        how="left"
+                    )   
+                    df_final = pd.concat([df_produto, df_final], ignore_index=True)
+                    
                     products_data.append(product_data[1])
                     
                     cont = cont + 1
