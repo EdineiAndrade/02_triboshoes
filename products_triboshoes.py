@@ -2,13 +2,11 @@ from sheets import save_to_google_sheets
 from playwright.sync_api import sync_playwright
 import pandas as pd
 import time
-import locale
 import re
 import ast
 
 # Função para extrair dados de um produto na página de detalhes
 def extract_product_data(page, url_product,nome_categiria):
-
     try:
         page.goto(url_product)
         time.sleep(.1)
@@ -32,12 +30,13 @@ def extract_product_data(page, url_product,nome_categiria):
             for label in labels
         }
         tamanhos = ', '.join(tamanhos_dict)
-        df_tamanho = pd.DataFrame(
-        list(tamanhos_dict.items()),
-        columns=['Valores do Atributo 1', 'Estoque']
-    )
-        
-        return [df_tamanho,{
+        df_tamanhos = pd.DataFrame(
+            list(tamanhos_dict.items()),
+            columns=['Valores do Atributo 1', 'Estoque']
+        )
+        df_tamanhos["Estoque"] = df_tamanhos["Estoque"].astype(int)  
+        df_tamanhos["Valores do Atributo 1"] = df_tamanhos["Valores do Atributo 1"].str.replace('"', '', regex=False)
+        return [df_tamanhos,{
             'Categoria': categoria,
             'ID': codigo,
             'SKU': "",
@@ -135,8 +134,6 @@ def scrape_categories(base_url):
                     
                     product_data = extract_product_data(page, url_product,nome_categiria)
                     df_tamanhos = product_data[0]
-                    df_tamanhos["Valores do Atributo 1"] = df_tamanhos["Valores do Atributo 1"].str.replace('"', '', regex=False)
-                    
                     df_produto = pd.DataFrame([product_data[1]])
                     df_produto["Valores do Atributo 1"] = df_produto["Valores do Atributo 1"].apply(
                         lambda x: ast.literal_eval(x)
@@ -144,15 +141,13 @@ def scrape_categories(base_url):
                     # Explodir a coluna "Valores do Atributo 1"   
                     df_explodido = df_produto.explode("Valores do Atributo 1").reset_index(drop=True)
                     df_explodido = df_explodido.drop(columns=["Estoque"])
-                    df_explodido["Tipo"] = "variation"
-                    df_tamanhos["Estoque"] = df_tamanhos["Estoque"].astype(int)    
+                    df_explodido["Tipo"] = "variation"  
                     df_final = df_explodido.merge(
                         df_tamanhos[["Valores do Atributo 1", "Estoque"]],  # Selecionar colunas desejadas
                         on="Valores do Atributo 1",
                         how="left"
                     )   
                     df_final = pd.concat([df_produto, df_final], ignore_index=True)
-
                     products_data.append(df_final)
                     df_final = pd.concat(products_data, ignore_index=True)
                     cont = cont + 1
@@ -167,6 +162,6 @@ def scrape_categories(base_url):
 
 # Executar o scraping e salvar os dados
 if __name__ == "__main__":
-    base_url = 'https://triboshoes.com.br/'  # Substitua pela URL base do e-commerce
+    base_url = 'https://triboshoes.com.br/'  
     data = scrape_categories(base_url)
     save_to_google_sheets(data)
