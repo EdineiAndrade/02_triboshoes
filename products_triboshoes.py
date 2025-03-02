@@ -13,6 +13,7 @@ def extract_product_data(page, url_product,nome_categiria):
         # Extrair informações usando os seletores fornecidos
         produto = page.locator('//*[@id="content"]/div[1]/div[2]/h1').inner_text()
         categoria = nome_categiria.title()
+        print(f"Processando categoria: {categoria} | produto:{produto}")
         codigo = url_product.split("-")[-1].replace('.html','')
         preco = page.locator('(//*[@class="list-unstyled"])[6]/li/h2').inner_text().replace('R$','')
         description = page.locator('div#tab-description').inner_text().replace('\n','')
@@ -120,18 +121,18 @@ def scrape_categories(base_url):
             categoria = url_categoria.split('/')[-1]
             nome_categiria = categoria.replace('-',' ')
             page.goto(url_categoria)
-            texto = page.locator('//*[@class="col-sm-6 text-right"]').inner_text()
-            numero_paginas = int(re.search(r'\((\d+)', texto).group(1))
-
+            try:
+                texto = page.locator('//*[@class="col-sm-6 text-right"]').inner_text()
+                numero_paginas = int(re.search(r'\((\d+)', texto).group(1)) if re.search(r'\((\d+)', texto) else 0
+            except:
+                continue
             for n in range(1, numero_paginas + 1):
                 page.goto(f"https://www.triboshoes.com.br/{categoria}?page={n}")
                 
                 product_links = page.query_selector_all('//*[@class="row no-gutter"]/div/div/div/a')
                 product_urls = list(map(lambda link: link.get_attribute('href'), product_links))
 
-                for url_product in product_urls:                
-                    print(f"Processando categoria: {url_product}")
-                    
+                for url_product in product_urls:               
                     product_data = extract_product_data(page, url_product,nome_categiria)
                     df_tamanhos = product_data[0]
                     df_produto = pd.DataFrame([product_data[1]])
