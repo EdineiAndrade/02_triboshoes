@@ -25,8 +25,11 @@ def save_to_google_sheets(data):
     
     # Apagar os dados atuais
     sheet.clear()
-    # Salvar DF atualizado
-    # Converte o DataFrame para uma lista de listas
+    
+    mask = data["Valores do Atributo 1"].apply(lambda x: isinstance(x, (list, tuple)))  # Identifica apenas listas/tuplas
+    data.loc[mask, "Valores do Atributo 1"] = data.loc[mask, "Valores do Atributo 1"].apply(lambda x: ", ".join(map(str, x)))
+
+    # Transformar em lista de listas, incluindo os títulos
     data_to_upload = [data.columns.tolist()] + data.values.tolist()
 
     # Insere os dados no Google Sheets

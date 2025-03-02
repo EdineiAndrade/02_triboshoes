@@ -6,8 +6,6 @@ import locale
 import re
 import ast
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-
 # Função para extrair dados de um produto na página de detalhes
 def extract_product_data(page, url_product,nome_categiria):
 
@@ -46,7 +44,7 @@ def extract_product_data(page, url_product,nome_categiria):
             'EAN': "",
             'NCM': "",
             'Preço promocional': 0,
-            "Tipo": "simple",
+            "Tipo": "variable",
             "GTIN UPC EAN ISBN": "",
             'Nome': produto,
             "Publicado": 1,
@@ -102,15 +100,9 @@ def extract_product_data(page, url_product,nome_categiria):
         return None
 
 # Função para salvar os dados em um arquivo Excel
-def save_to_excel(data, filename='products.xlsx'):
-    if isinstance(data, dict):
-        df = pd.DataFrame.from_dict(data, orient="index").T
-    else:    
-        df = pd.DataFrame(data)
-    #df.to_excel(filename, index=False)
-    #print(f"Dados salvos em {filename}")
-    save_to_google_sheets(df)
-    
+def save_to_excel(data, filename='products.xlsx'):    
+    #data.to_excel(filename, index=False)
+    save_to_google_sheets(data) 
 
 # Função principal para realizar o scraping
 def scrape_categories(base_url):
@@ -129,13 +121,10 @@ def scrape_categories(base_url):
             categoria = url_categoria.split('/')[-1]
             nome_categiria = categoria.replace('-',' ')
             page.goto(url_categoria)
-            texto = page.locator('((//*[@class="row"])[6]/div)[2]').inner_text()
-            # Função lambda para extrair o número de páginas
-            get_pages = lambda t: int(re.search(r'\((\d+) páginas\)', t).group(1)) if re.search(r'\((\d+) páginas\)', t) else None
+            texto = page.locator('//*[@class="col-sm-6 text-right"]').inner_text()
+            numero_paginas = int(re.search(r'\((\d+)', texto).group(1))
 
-            num_paginas = get_pages(texto)
-
-            for n in range(1, num_paginas + 1):
+            for n in range(1, numero_paginas + 1):
                 page.goto(f"https://www.triboshoes.com.br/{categoria}?page={n}")
                 
                 product_links = page.query_selector_all('//*[@class="row no-gutter"]/div/div/div/a')
@@ -155,25 +144,26 @@ def scrape_categories(base_url):
                     # Explodir a coluna "Valores do Atributo 1"   
                     df_explodido = df_produto.explode("Valores do Atributo 1").reset_index(drop=True)
                     df_explodido = df_explodido.drop(columns=["Estoque"])
-
+                    df_explodido["Tipo"] = "variation"
+                    df_tamanhos["Estoque"] = df_tamanhos["Estoque"].astype(int)    
                     df_final = df_explodido.merge(
                         df_tamanhos[["Valores do Atributo 1", "Estoque"]],  # Selecionar colunas desejadas
                         on="Valores do Atributo 1",
                         how="left"
                     )   
                     df_final = pd.concat([df_produto, df_final], ignore_index=True)
-                    
-                    products_data.append(product_data[1])
-                    
+
+                    products_data.append(df_final)
+                    df_final = pd.concat(products_data, ignore_index=True)
                     cont = cont + 1
-                    if cont >= 1:
+                    if cont >= 20:
                         time.sleep(1)
-                        save_to_excel(products_data, 'products.xlsx')
+                        save_to_excel(df_final, 'products.xlsx')
                         time.sleep(1)
                         cont = 0
         browser.close()
 
-        return products_data
+        return df_final
 
 # Executar o scraping e salvar os dados
 if __name__ == "__main__":
