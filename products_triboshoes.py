@@ -14,13 +14,13 @@ def extract_product_data(page, url_product,nome_categiria):
         produto = page.locator('//*[@id="content"]/div[1]/div[2]/h1').inner_text()
         categoria = nome_categiria.title()
         print(f"Processando categoria: {categoria} | produto:{produto}")
-        codigo = url_product.split("-")[-1].replace('.html','')
+        codigo = int(url_product.split("-")[-1].replace('.html',''))
         preco = page.locator('(//*[@class="list-unstyled"])[6]/li/h2').inner_text().replace('R$','')
         description = page.locator('div#tab-description').inner_text().replace('\n','')
 
-        imagem = page.query_selector_all('//*[@class="thumbnails"]/li/a/img')
-        lista_imagens = list(map(lambda link: link.get_attribute('src'), imagem))
-        lista_imagens = ",".join(lista_imagens)
+        imagem = page.query_selector_all('//*[@class="thumbnails"]//a')
+        lista_imagens = list(map(lambda link: link.get_attribute('href'), imagem))
+        lista_imagens = ", ".join(lista_imagens)
         
         # Seleciona todas as LABELS com data-qty="0" dentro das divs de opção
         labels = page.locator('div[id^="input-option"] label[data-qty]').all()
@@ -31,6 +31,7 @@ def extract_product_data(page, url_product,nome_categiria):
             for label in labels
         }
         tamanhos = ', '.join(tamanhos_dict)
+        tamanho_meio = tamanhos.split(",")[int(len(tamanhos.split(","))/2)].replace("'","").replace('"','').replace(' ','')
         df_tamanhos = pd.DataFrame(
             list(tamanhos_dict.items()),
             columns=['Valores do Atributo 1', 'Estoque']
@@ -38,11 +39,7 @@ def extract_product_data(page, url_product,nome_categiria):
         df_tamanhos["Estoque"] = df_tamanhos["Estoque"].astype(int)  
         df_tamanhos["Valores do Atributo 1"] = df_tamanhos["Valores do Atributo 1"].str.replace('"', '', regex=False)
         return [df_tamanhos,{
-            'Categoria': categoria,
             'ID': codigo,
-            'SKU': "",
-            'EAN': "",
-            'NCM': "",
             'Preço promocional': 0,
             "Tipo": "variable",
             "GTIN UPC EAN ISBN": "",
@@ -55,9 +52,9 @@ def extract_product_data(page, url_product,nome_categiria):
             "Data de Preço Promocional Começa em": "",
             "Data de Preço Promocional Termina em": "",
             "Status do Imposto": "taxable",
-            "Classe de Imposto": "",
-            "Em Estoque": 1,
-            "Estoque": 30,
+            "Classe de Imposto": "parent",
+            "Em Estoque": 0,
+            "Estoque": "",
             "Quantidade Baixa de Estoque": 3,
             "São Permitidas Encomendas": 0,
             "Vendido Individualmente": 0,
@@ -65,29 +62,29 @@ def extract_product_data(page, url_product,nome_categiria):
             "Comprimento (cm)": 32,
             "Largura (cm)": 20,
             "Altura (cm)": 12,
-            "Permitir Avaliações de Clientes": 1,
+            "Permitir avaliações de clientes?": 1,
             "Nota de Compra": "",
             "Preço Promocional": "",
             "Preço": preco,
-            "Categorias": "",
+            "Categorias": categoria,
             "Tags": "",
             "Classe de Entrega": "",
             "Imagens": lista_imagens,
             "Limite de Downloads": "",
             "Dias para Expirar o Download": "",
-            "Ascendente": "",
+            "Ascendente": f"id:{codigo}",
             "Grupo de Produtos": "",
             "Upsells": "",
             "Venda Cruzada": "",
             "URL Externa": "",
             "Texto do Botão": "",
-            "Posição": "",
+            "Posição": 0,
             "Brands": "",
             "Nome do Atributo 1": "Tamanho",
             "Valores do Atributo 1": tamanhos,
             "Visibilidade do Atributo 1": 0,
             "Atributo Global 1": 1,
-            "Atributo Padrão 1": "",
+            "Atributo Padrão 1": tamanho_meio,
             "Nome do Atributo 2": "",
             "Valores do Atributo 2": "",
             "Visibilidade do Atributo 2": 0,
@@ -143,14 +140,27 @@ def scrape_categories(base_url):
                     df_explodido = df_produto.explode("Valores do Atributo 1").reset_index(drop=True)
                     df_explodido = df_explodido.drop(columns=["Estoque"])
                     df_explodido["Tipo"] = "variation"  
+                    df_explodido[
+                    ["Descrição","Peso (kg)","Comprimento (cm)","Largura (cm)",
+                     "Altura (cm)","Categorias","Visibilidade do atributo 1","Atributo Padrão 1",
+                     "Quantidade Baixa de Estoque","Imagens"]
+                                 ] = None
+                    df_produto[
+                        ["Classe de Imposto","Ascendente","Preço"]
+                               ] = None
+                    df_explodido["Permitir avaliações de clientes?"] = 0
+                    df_explodido["Posição"] = df_explodido.index + 1
+                    df_explodido["ID"] = df_explodido["ID"].astype(str) + df_explodido["Posição"].astype(str)
                     df_final = df_explodido.merge(
                         df_tamanhos[["Valores do Atributo 1", "Estoque"]],  # Selecionar colunas desejadas
                         on="Valores do Atributo 1",
                         how="left"
-                    )   
+                    )
+                    df_final["Em Estoque"] = df_final["Estoque"]   
                     df_final = pd.concat([df_produto, df_final], ignore_index=True)
                     products_data.append(df_final)
                     df_final = pd.concat(products_data, ignore_index=True)
+                    df_final = df_final.fillna("")
                     cont = cont + 1
                     if cont >= 20:
                         time.sleep(1)

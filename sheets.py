@@ -21,7 +21,7 @@ def authenticate_google_sheets():
 def save_to_google_sheets(data):    
     sheet_id = "1TFmVRbu-pt2qQCfq7qisU2gWPZm3pJ1q48NeL4DMVFs"  # ID da planilha
     client = authenticate_google_sheets()
-    sheet = client.open_by_key(sheet_id).get_worksheet(2)  # Abre a terceira aba
+    sheet = client.open_by_key(sheet_id).get_worksheet(1)  # Abre a terceira aba
     
     # Apagar os dados atuais
     sheet.clear()
