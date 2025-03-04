@@ -1,4 +1,3 @@
-
 # 🚀 Web Scraping com Playwright e Google Sheets
 
 Este projeto realiza **web scraping** em um site utilizando **Playwright** para automação da navegação e extração de dados. Os dados coletados são processados com **Pandas** e armazenados automaticamente no **Google Sheets** através da integração com **gspread** e  **Google-Auth** .
