@@ -14,10 +14,10 @@ def extract_product_data(page, url_product,nome_categiria):
         produto = page.locator('//*[@id="content"]/div[1]/div[2]/h1').inner_text()
         categoria = nome_categiria.title()
         print(f"Processando categoria: {categoria} | produto:{produto}")
-        codigo = int(url_product.split("-")[-1].replace('.html',''))
+        codigo = url_product.split("-")[-1].replace('.html','')
+        codigo = int("".join(re.findall(r'\d+', codigo)))
         preco = page.locator('(//*[@class="list-unstyled"])[6]/li/h2').inner_text().replace('R$','')
         description = page.locator('div#tab-description').inner_text().replace('\n','')
-
         imagem = page.query_selector_all('//*[@class="thumbnails"]//a')
         lista_imagens = list(map(lambda link: link.get_attribute('href'), imagem))
         lista_imagens = ", ".join(lista_imagens)
@@ -162,7 +162,7 @@ def scrape_categories(base_url):
                     df_final = pd.concat(products_data, ignore_index=True)
                     df_final = df_final.fillna("")
                     cont = cont + 1
-                    if cont >= 20:
+                    if cont >= 1:
                         time.sleep(1)
                         save_to_excel(df_final, 'products.xlsx')
                         time.sleep(1)
